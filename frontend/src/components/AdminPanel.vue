@@ -64,7 +64,7 @@ const updateUserRole = async (userId, newRole) => {
     // Не забывай про токен и здесь тоже!
     try {
         await axios.post(`http://127.0.0.1:8000/api/admin/users/${userId}/role/`,
-            { role_code: newRole },
+            { role: newRole },
             { headers: { 'Authorization': `Token ${localStorage.getItem('user-token')}` } }
         )
 

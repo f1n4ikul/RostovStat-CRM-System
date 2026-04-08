@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { useRouter } from 'vue-router'
+import AnalyticsCharts from './AnalyticsCharts.vue'
 
 // Импорт компонентов PrimeVue
 import Button from 'primevue/button'
@@ -10,18 +12,34 @@ import ScrollPanel from 'primevue/scrollpanel'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 
+const router = useRouter()
 const profile = ref(null)
-const emit = defineEmits(['close', 'logout'])
-
+const allTracks = ref([])
 const isSettingsMode = ref(false)
 const newPassword = ref('')
 const message = ref('')
 
+// Загрузка данных при входе на страницу
+onMounted(async () => {
+    try {
+        const [resProfile, resTracks] = await Promise.all([
+            axios.get('http://127.0.0.1:8000/api/profile/'),
+            axios.get('http://127.0.0.1:8000/api/records/')
+        ])
+        profile.value = resProfile.data
+        allTracks.value = resTracks.data
+    } catch (e) {
+        console.error("Ошибка загрузки профиля:", e)
+        // Если токен протух — отправляем на логин
+        if (e.response?.status === 401) handleLogout()
+    }
+})
+
 const handleLogout = () => {
     localStorage.removeItem('user-token')
+    localStorage.removeItem('user-info')
     delete axios.defaults.headers.common['Authorization']
-    emit('logout')
-    emit('close')
+    window.location.href = '/'
 }
 
 const saveSettings = async () => {
@@ -29,6 +47,7 @@ const saveSettings = async () => {
         message.value = "Пароль слишком короткий"
         return
     }
+    // Здесь будет твой реальный запрос к API для смены пароля
     message.value = "Настройки сохранены!"
     setTimeout(() => {
         isSettingsMode.value = false
@@ -37,16 +56,6 @@ const saveSettings = async () => {
     }, 1500)
 }
 
-onMounted(async () => {
-    try {
-        const response = await axios.get('http://127.0.0.1:8000/api/profile/')
-        profile.value = response.data
-    } catch (e) {
-        console.error("Ошибка загрузки профиля:", e)
-    }
-})
-
-// Хелпер для определения цвета роли
 const getRoleSeverity = (role) => {
     switch (role) {
         case 'admin': return 'danger';
@@ -57,126 +66,189 @@ const getRoleSeverity = (role) => {
 </script>
 
 <template>
-    <div v-if="profile" @click="emit('close')"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-
-        <div @click.stop
-            class="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-auto max-h-[90vh] border border-white/20">
-
-            <div class="md:w-80 bg-slate-900 p-8 text-white flex flex-col items-center border-r border-slate-800">
-                <div class="relative mb-6">
-                    <Avatar :label="profile.username[0].toUpperCase()"
-                        class="!w-28 !h-28 !text-4xl !font-black !rounded-3xl shadow-2xl" :class="[
-                            profile.role_code === 'admin' ? 'bg-gradient-to-br from-red-600 to-orange-700' :
-                                profile.role_code === 'moderator' ? 'bg-gradient-to-br from-purple-600 to-indigo-700' :
-                                    'bg-gradient-to-br from-blue-600 to-cyan-700'
-                        ]" />
-                    <div
-                        class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-4 border-slate-900 rounded-full">
-                    </div>
+    <div class="min-h-screen bg-[#f1f5f9] pb-12">
+        <div class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8">
+            <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <Button icon="pi pi-chevron-left" @click="router.push('/')"
+                        class="!p-button-text !p-button-secondary !p-button-sm !rounded-xl" label="Назад к архиву" />
+                    <div class="h-4 w-[1px] bg-slate-200 mx-2"></div>
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Личный кабинет</span>
                 </div>
 
-                <div class="text-center mb-8">
-                    <h2 class="text-2xl font-black tracking-tight">{{ profile.username }}</h2>
-                    <p class="text-blue-400 text-[10px] font-black uppercase tracking-[0.15em] mt-1 italic">
-                        {{ profile.department }}
-                    </p>
-                    <p class="text-slate-500 text-xs mt-2 opacity-60">{{ profile.email }}</p>
-
-                    <div class="mt-5">
-                        <Tag :value="profile.role" :severity="getRoleSeverity(profile.role_code)"
-                            class="!px-4 !py-1.5 !rounded-full !text-[10px] !font-black uppercase tracking-widest" />
-                    </div>
+                <div class="flex items-center gap-3">
+                    <Tag v-if="profile" :value="profile.role" :severity="getRoleSeverity(profile.role_code)"
+                        class="!rounded-lg !text-[9px] !font-black uppercase tracking-tighter" />
                 </div>
-
-                <div class="w-full space-y-5 pt-6 border-t border-slate-800/50">
-                    <div class="flex justify-between items-center">
-                        <span class="text-[9px] uppercase font-black text-slate-500 tracking-widest">Табельный №</span>
-                        <span class="text-xs font-mono text-slate-300">#{{ profile.id + 1000 }}</span>
-                    </div>
-                    <div>
-                        <p class="text-[9px] uppercase font-black text-slate-500 tracking-widest mb-1">В системе с</p>
-                        <p class="text-xs font-mono text-slate-300">{{ profile.date_joined }}</p>
-                    </div>
-                </div>
-
-                <Button @click="handleLogout" icon="pi pi-power-off" label="Завершить сессию" severity="danger" text
-                    class="mt-auto w-full !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !bg-slate-800/50 hover:!bg-red-500/10" />
             </div>
+        </div>
 
-            <div class="flex-1 p-10 flex flex-col bg-slate-50/50">
-                <div class="flex justify-between items-center mb-8">
-                    <h3 class="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">
-                        {{ isSettingsMode ? 'Безопасность' : 'Личный кабинет' }}
-                    </h3>
-                    <Button icon="pi pi-times" severity="secondary" rounded text @click="emit('close')" />
-                </div>
+        <div v-if="profile" class="max-w-7xl mx-auto px-6 animate-in fade-in duration-700">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                <div v-if="!isSettingsMode" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-                    <div class="grid grid-cols-3 gap-4">
-                        <div
-                            class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                            <p class="text-3xl font-black text-blue-600">{{ profile.summary.my_favorites }}</p>
-                            <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Избранное</p>
-                        </div>
-                        <div
-                            class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                            <p class="text-3xl font-black text-indigo-600">{{ profile.summary.my_records }}</p>
-                            <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1">Мои файлы</p>
-                        </div>
-                        <div class="bg-slate-900 p-5 rounded-[2rem] shadow-xl">
-                            <p class="text-3xl font-black text-white">{{ profile.summary.total_system_files }}</p>
-                            <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Архив КИС</p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-2">Последние
-                            события</h4>
-                        <ScrollPanel style="width: 100%; height: 250px">
-                            <div class="space-y-2 pr-4">
-                                <div v-for="item in profile.stats.recent_activity" :key="item.id"
-                                    class="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-50 hover:border-blue-100 transition-all group">
-                                    <div class="flex items-center space-x-4">
-                                        <div
-                                            class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-colors">
-                                            <i class="pi pi-file-audio"></i>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-black text-slate-700 line-clamp-1">{{ item.title }}
-                                            </p>
-                                            <p class="text-[10px] text-slate-400 font-mono italic">Аудиопоток загружен
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <Tag :value="item.date" severity="secondary" class="!text-[9px] !bg-slate-50" />
+                <div class="lg:col-span-4 xl:col-span-3">
+                    <div class="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl sticky top-24">
+                        <div class="flex flex-col items-center">
+                            <div class="relative mb-6 group">
+                                <Avatar :label="profile.username[0].toUpperCase()"
+                                    class="!w-32 !h-32 !text-5xl !font-black !rounded-[2rem] shadow-2xl transition-transform group-hover:scale-105"
+                                    :class="[
+                                        profile.role_code === 'admin' ? 'bg-gradient-to-br from-red-500 to-rose-700' :
+                                            profile.role_code === 'moderator' ? 'bg-gradient-to-br from-purple-500 to-indigo-700' :
+                                                'bg-gradient-to-br from-blue-500 to-cyan-700'
+                                    ]" />
+                                <div
+                                    class="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 border-4 border-slate-900 rounded-2xl flex items-center justify-center">
+                                    <i class="pi pi-check text-[10px] text-white"></i>
                                 </div>
                             </div>
-                        </ScrollPanel>
-                    </div>
 
-                    <Button @click="isSettingsMode = true" label="Настройки аккаунта" icon="pi pi-cog" outlined
-                        class="w-full !py-4 !rounded-[2rem] !font-black !text-xs !uppercase !tracking-widest !border-2" />
+                            <div class="text-center w-full">
+                                <h2 class="text-2xl font-black tracking-tight mb-1">{{ profile.username }}</h2>
+                                <p class="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] italic mb-4">
+                                    {{ profile.department || 'Департамент статистики' }}
+                                </p>
+
+                                <div class="bg-white/5 rounded-2xl p-4 mb-6 border border-white/5">
+                                    <p class="text-[10px] text-slate-400 uppercase font-black mb-1">Электронная почта
+                                    </p>
+                                    <p class="text-sm font-medium text-slate-200 truncate">{{ profile.email }}</p>
+                                </div>
+
+                                <div class="space-y-3 mb-8">
+                                    <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded-xl">
+                                        <span class="text-[9px] font-black text-slate-500 uppercase">ID</span>
+                                        <span class="text-xs font-mono">#{{ profile.id + 1000 }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded-xl">
+                                        <span class="text-[9px] font-black text-slate-500 uppercase">Стаж</span>
+                                        <span class="text-xs font-mono">{{ profile.date_joined }}</span>
+                                    </div>
+                                </div>
+
+                                <Button @click="handleLogout" icon="pi pi-power-off" label="Завершить сеанс"
+                                    class="!w-full !py-4 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !bg-red-500/10 !text-red-400 !border-red-500/20 hover:!bg-red-500 hover:!text-white transition-all" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div v-else class="space-y-6 animate-in slide-in-from-right-4 duration-500">
-                    <div class="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                        <label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Новый пароль</label>
-                        <InputText v-model="newPassword" type="password" class="w-full !rounded-xl"
-                            placeholder="••••••••" />
-
-                        <Message v-if="message" :severity="message.includes('сохранены') ? 'success' : 'warn'"
-                            class="mt-4">
-                            {{ message }}
-                        </Message>
-                    </div>
+                <div class="lg:col-span-8 xl:col-span-9 space-y-8">
 
                     <div class="flex gap-4">
-                        <Button @click="saveSettings" label="Сохранить" class="flex-1 !rounded-2xl !font-bold" />
-                        <Button @click="isSettingsMode = false" label="Назад" severity="secondary" text
-                            class="flex-1 !rounded-2xl !font-bold" />
+                        <button @click="isSettingsMode = false"
+                            :class="[!isSettingsMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-500']"
+                            class="px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
+                            <i class="pi pi-chart-bar mr-2"></i> Аналитика
+                        </button>
+                        <button @click="isSettingsMode = true"
+                            :class="[isSettingsMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-500']"
+                            class="px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
+                            <i class="pi pi-shield mr-2"></i> Безопасность
+                        </button>
                     </div>
+
+                    <div v-if="!isSettingsMode" class="space-y-8 animate-in slide-in-from-right-4 duration-500">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div
+                                class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
+                                <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
+                                    <i class="pi pi-heart-fill text-blue-500"></i>
+                                </div>
+                                <p class="text-4xl font-black text-slate-800">{{ profile.summary.my_favorites }}</p>
+                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-2">В
+                                    избранном</p>
+                            </div>
+                            <div
+                                class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
+                                <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center mb-4">
+                                    <i class="pi pi-cloud-upload text-indigo-500"></i>
+                                </div>
+                                <p class="text-4xl font-black text-slate-800">{{ profile.summary.my_records }}</p>
+                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-2">Мои
+                                    загрузки</p>
+                            </div>
+                            <div
+                                class="bg-slate-900 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
+                                <div
+                                    class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mb-4 text-white">
+                                    <i class="pi pi-server"></i>
+                                </div>
+                                <p class="text-4xl font-black text-white">{{ profile.summary.total_system_files }}</p>
+                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-2">База
+                                    системы</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200/60 shadow-sm">
+                            <div class="flex items-center justify-between mb-8">
+                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest italic">
+                                    Визуализация активности данных
+                                </h4>
+                            </div>
+                            <AnalyticsCharts :records="allTracks" />
+                        </div>
+
+                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200/60 shadow-sm">
+                            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-8">События учетной
+                                записи</h4>
+                            <ScrollPanel style="width: 100%; height: 300px" class="custom-scroll">
+                                <div class="space-y-4 pr-6">
+                                    <div v-for="item in profile.stats.recent_activity" :key="item.id"
+                                        class="group flex items-center justify-between p-5 bg-slate-50/50 rounded-3xl border border-transparent hover:border-blue-200 hover:bg-white transition-all duration-300">
+                                        <div class="flex items-center space-x-5">
+                                            <div
+                                                class="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-blue-600 transition-colors">
+                                                <i class="pi pi-history text-slate-400 group-hover:text-white"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-sm font-black text-slate-700">{{ item.title }}</p>
+                                                <p
+                                                    class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">
+                                                    Запись успешно верифицирована</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <Tag :value="item.date" severity="secondary"
+                                                class="!text-[9px] !bg-slate-200/50 !text-slate-600" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </ScrollPanel>
+                        </div>
+                    </div>
+
+                    <div v-else class="max-w-xl animate-in slide-in-from-right-4 duration-500">
+                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm">
+                            <div class="mb-8">
+                                <h3 class="text-xl font-black text-slate-800 mb-2">Настройки безопасности</h3>
+                                <p class="text-sm text-slate-400 font-medium">Регулярная смена пароля помогает защитить
+                                    ваш рабочий аккаунт в РостовСтат.</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Новый
+                                        пароль</label>
+                                    <InputText v-model="newPassword" type="password"
+                                        class="!w-full !rounded-2xl !p-5 !bg-slate-50 !border-slate-100 focus:!bg-white"
+                                        placeholder="Минимум 6 символов" />
+                                </div>
+
+                                <Message v-if="message" :severity="message.includes('сохранены') ? 'success' : 'warn'">
+                                    {{ message }}
+                                </Message>
+
+                                <div class="flex gap-4 pt-4">
+                                    <Button @click="saveSettings" label="Сохранить изменения"
+                                        class="flex-[2] !rounded-2xl !py-4 !font-black !uppercase !text-[10px] !tracking-widest" />
+                                    <Button @click="isSettingsMode = false" label="Отмена" severity="secondary" text
+                                        class="flex-1 !rounded-2xl !font-black !uppercase !text-[10px] !tracking-widest" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -184,13 +256,18 @@ const getRoleSeverity = (role) => {
 </template>
 
 <style scoped>
-/* Плавный скроллбар для ScrollPanel */
-:deep(.p-scrollpanel-bar) {
-    background: #e2e8f0;
-    opacity: 1;
+/* Кастомный скролл для PrimeVue */
+:deep(.custom-scroll .p-scrollpanel-bar) {
+    background-color: #cbd5e1 !important;
+    opacity: 0.5 !important;
 }
 
 :deep(.p-tag) {
     border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Улучшение читаемости на больших экранах */
+.max-w-7xl {
+    max-width: 1400px;
 }
 </style>

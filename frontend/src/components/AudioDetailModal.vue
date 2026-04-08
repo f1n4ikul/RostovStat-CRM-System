@@ -12,7 +12,7 @@ import ScrollPanel from 'primevue/scrollpanel'
 import WavePlayer from './WavePlayer.vue'
 
 const props = defineProps(['track', 'isOpen', 'isAdmin'])
-const emit = defineEmits(['close', 'refresh'])
+const emit = defineEmits(['close', 'refresh', 'track-deleted'])
 
 // Реф для управления плеером из этой модалки
 const wavePlayerRef = ref(null)
@@ -35,6 +35,7 @@ const handleDeleteTrack = async () => {
     title: 'Вы уверены?',
     text: `Запись "${props.track.title}" будет удалена безвозвратно!`,
     icon: 'warning',
+    target: document.querySelector('.custom-dialog'),
     showCancelButton: true,
     confirmButtonColor: '#ef4444',
     cancelButtonColor: '#64748b',
@@ -51,15 +52,16 @@ const handleDeleteTrack = async () => {
         headers: { 'Authorization': `Token ${token}` }
       })
 
-      Swal.fire({
+      await Swal.fire({
         title: 'Удалено!',
         icon: 'success',
-        timer: 2000,
+        timer: 1500,
         showConfirmButton: false,
+        target: document.querySelector('.custom-dialog'),
         borderRadius: '20px'
       })
 
-      emit('refresh', props.track.id)
+      emit('track-deleted', props.track.id)
       emit('close')
     } catch (err) {
       Swal.fire({

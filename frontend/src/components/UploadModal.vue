@@ -68,7 +68,8 @@ const upload = async () => {
                 'Authorization': `Token ${token}`
             }
         })
-        await Swal.fire({ icon: 'success', title: 'Готово', timer: 1500, showConfirmButton: false })
+        await Swal.fire({ icon: 'success', title: 'Готово', timer: 1000, showConfirmButton: false })
+        window.dispatchEvent(new CustomEvent('track-uploaded'));
         emit('uploaded')
         emit('close')
     } catch (error) {

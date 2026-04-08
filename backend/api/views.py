@@ -22,38 +22,36 @@ import os
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    # Теперь мы ожидаем 'employee_code' с фронтенда
+    
     employee_code = request.data.get('employee_code') 
     password = request.data.get('password')
     email = request.data.get('email')
     role = request.data.get('role')
     department = request.data.get('department', 'Общий отдел')
 
-    # Проверка обязательных полей (теперь с упоминанием табельного номера)
+  
     if not employee_code or not password or not email:
         return Response(
             {'error': 'Табельный номер, пароль и Email обязательны для регистрации'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Проверка на уникальность табельного номера
+   
     if User.objects.filter(username=employee_code).exists():
         return Response(
             {'error': 'Сотрудник с таким табельным номером уже зарегистрирован в системе'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Создаем пользователя. Поле username в Django теперь хранит табельный номер.
+   
     user = User.objects.create_user(
         username=employee_code, 
         password=password,
         email=email
     )
 
-    # Сохраняем отдел
     user.first_name = department
 
-    # Логика ролей (is_staff дает доступ к загрузке аудио)
     if role in ['admin', 'moderator']:
         user.is_staff = True
     
@@ -81,11 +79,7 @@ def register_user(request):
 @permission_classes([IsAuthenticated, IsModeratorOrAdmin]) 
 @parser_classes([MultiPartParser, FormParser])
 def upload_audio(request):
-    # if not request.user.is_staff:
-    #     return Response(
-    #         {'error': 'Только модераторы или админы могут загружать файлы'}, 
-    #         status=status.HTTP_403_FORBIDDEN
-    #     )
+    
     # Передаем данные, включая поле is_private с фронтенда
     serializer = AudioRecordCreateSerializer(
         data=request.data, 
