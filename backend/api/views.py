@@ -1,22 +1,27 @@
-from rest_framework import viewsets
-from .serializers import AudioRecordSerializer, AudioRecordCreateSerializer, CommentSerializer
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
-from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
-from rest_framework.authtoken.models import Token
-from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.decorators import parser_classes
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
-from .models import Favorite, AudioRecord, UserProfile
-from django.db.models import Count
-from django.db.models import Q
-from .permissions import IsModeratorOrAdmin, IsSystemAdmin
-from django.http import FileResponse
 import os
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
+from django.db.models import Count, Q
+from django.http import FileResponse
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes, parser_classes, action
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
+
+from .models import RegionalStat, PortalNews, Favorite, AudioRecord, UserProfile, Post, PostComment, AdditionalDocument
+from .serializers import (
+    AudioRecordSerializer,
+    PortalNewsSerializer,
+    RegionalStatSerializer,
+    AudioRecordSerializer, 
+    AudioRecordCreateSerializer, 
+    CommentSerializer, 
+    PostSerializer, 
+    PostCommentSerializer
+)
+from .permissions import IsModeratorOrAdmin, IsSystemAdmin
 
 
 @api_view(['POST'])
@@ -75,23 +80,23 @@ def register_user(request):
         'role': 'Модератор' if user.is_staff else 'Сотрудник'
     }, status=status.HTTP_201_CREATED)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsModeratorOrAdmin]) 
-@parser_classes([MultiPartParser, FormParser])
-def upload_audio(request):
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated, IsModeratorOrAdmin]) 
+# @parser_classes([MultiPartParser, FormParser])
+# def upload_audio(request):
     
-    # Передаем данные, включая поле is_private с фронтенда
-    serializer = AudioRecordCreateSerializer(
-        data=request.data, 
-        context={'request': request}
-    )
+#     # Передаем данные, включая поле is_private с фронтенда
+#     serializer = AudioRecordCreateSerializer(
+#         data=request.data, 
+#         context={'request': request}
+#     )
     
-    if serializer.is_valid():
-        # Указываем автора явно при сохранении
-        serializer.save(author=request.user) 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+#     if serializer.is_valid():
+#         # Указываем автора явно при сохранении
+#         serializer.save(author=request.user) 
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
@@ -389,3 +394,117 @@ def download_audio(request, pk):
         
     except AudioRecord.DoesNotExist:
         return Response({'error': 'Запись не найдена'}, status=status.HTTP_404_NOT_FOUND)
+    
+# class PostViewSet(viewsets.ModelViewSet):
+#     queryset = Post.objects.all()
+#     serializer_class = PostSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def perform_create(self, serializer):
+#         # Автоматически назначаем автора при создании
+#         serializer.save(author=self.request.user)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def toggle_post_like(request, pk): # Убрал self
+    try:
+        post = Post.objects.get(pk=pk)
+        if post.likes.filter(id=request.user.id).exists():
+            post.likes.remove(request.user)
+            return Response({'is_liked': False, 'likes_count': post.likes.count()})
+        else:
+            post.likes.add(request.user)
+            return Response({'is_liked': True, 'likes_count': post.likes.count()})
+    except Post.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+
+
+class PostViewSet(viewsets.ModelViewSet):
+    queryset = Post.objects.all().order_by('-created_at')
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        post = self.get_object()
+        
+        if request.method == 'GET':
+            comments = post.comments.all()
+            serializer = PostCommentSerializer(comments, many=True)
+            return Response(serializer.data)
+        
+        if request.method == 'POST':
+            serializer = PostCommentSerializer(data=request.data)
+            if serializer.is_valid():
+                # Сохраняем с новыми именами полей
+                serializer.save(author=request.user, post=post)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class PortalNewsViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = PortalNews.objects.all()
+    serializer_class = PortalNewsSerializer
+    permission_classes = [IsAuthenticated]
+
+    # Метод для получения только одной самой важной новости
+    @action(detail=False, methods=['get'])
+    def latest_important(self, request):
+        news = self.get_queryset().filter(is_important=True).first()
+        if not news:
+            news = self.get_queryset().first()
+        serializer = self.get_serializer(news)
+        return Response(serializer.data)
+
+class RegionalStatViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = RegionalStat.objects.all()
+    serializer_class = RegionalStatSerializer
+    permission_classes = [IsAuthenticated]
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def upload_audio(request):
+    serializer = AudioRecordCreateSerializer(data=request.data, context={'request': request})
+    
+    if serializer.is_valid():
+        audio_record = serializer.save(author=request.user)
+        
+        # Получаем список дополнительных файлов (ключ 'documents' на фронте)
+        extra_files = request.FILES.getlist('documents')
+        for f in extra_files:
+            AdditionalDocument.objects.create(
+                audio_record=audio_record,
+                file=f,
+                file_name=f.name
+            )
+            
+        return Response(AudioRecordSerializer(audio_record, context={'request': request}).data, status=status.HTTP_201_CREATED)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_document(request, pk):
+    try:
+        doc = AdditionalDocument.objects.get(pk=pk)
+        # Проверка: если аудиозапись приватная, разрешаем только автору или персоналу
+        if doc.audio_record.is_private and not request.user.is_staff and doc.audio_record.author != request.user:
+            return Response({'error': 'Доступ запрещен'}, status=status.HTTP_403_FORBIDDEN)
+
+        file_path = doc.file.path
+        if os.path.exists(file_path):
+            response = FileResponse(open(file_path, 'rb'), as_attachment=True)
+            # Используем оригинальное имя файла
+            response['Content-Disposition'] = f'attachment; filename="{doc.file_name}"'
+            return response
+        
+        return Response({'error': 'Файл не найден на сервере'}, status=status.HTTP_404_NOT_FOUND)
+    except AdditionalDocument.DoesNotExist:
+        return Response({'error': 'Документ не найден'}, status=status.HTTP_404_NOT_FOUND)

@@ -14,7 +14,6 @@ import WavePlayer from './WavePlayer.vue'
 const props = defineProps(['track', 'isOpen', 'isAdmin'])
 const emit = defineEmits(['close', 'refresh', 'track-deleted'])
 
-// Реф для управления плеером из этой модалки
 const wavePlayerRef = ref(null)
 
 const formatTime = (seconds) => {
@@ -25,24 +24,19 @@ const formatTime = (seconds) => {
 }
 
 const handleSeek = (time) => {
-  if (wavePlayerRef.value) {
-    wavePlayerRef.value.seekTo(time)
-  }
+  wavePlayerRef.value?.seekTo(time)
 }
 
 const handleDeleteTrack = async () => {
   const result = await Swal.fire({
-    title: 'Вы уверены?',
-    text: `Запись "${props.track.title}" будет удалена безвозвратно!`,
+    title: 'Удалить запись?',
+    text: `Файл "${props.track.title}" будет стерт из архива безвозвратно.`,
     icon: 'warning',
-    target: document.querySelector('.custom-dialog'),
     showCancelButton: true,
     confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#64748b',
-    confirmButtonText: 'Да, удалить!',
+    confirmButtonText: 'Да, удалить',
     cancelButtonText: 'Отмена',
-    background: '#ffffff',
-    borderRadius: '20px'
+    customClass: { popup: 'rounded-3xl' }
   })
 
   if (result.isConfirmed) {
@@ -51,125 +45,168 @@ const handleDeleteTrack = async () => {
       await axios.delete(`http://127.0.0.1:8000/api/records/${props.track.id}/delete/`, {
         headers: { 'Authorization': `Token ${token}` }
       })
-
-      await Swal.fire({
-        title: 'Удалено!',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false,
-        target: document.querySelector('.custom-dialog'),
-        borderRadius: '20px'
-      })
-
       emit('track-deleted', props.track.id)
       emit('close')
     } catch (err) {
-      Swal.fire({
-        title: 'Ошибка!',
-        text: err.response?.data?.error || 'Не удалось удалить файл.',
-        icon: 'error'
-      })
+      Swal.fire('Ошибка', err.response?.data?.error || 'Доступ запрещен', 'error')
     }
   }
 }
 
-const handleEditTrack = () => {
-  alert('Функция редактирования данных будет добавлена в следующем обновлении.')
+const downloadDoc = async (doc) => {
+  const token = localStorage.getItem('user-token')
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/api/documents/${doc.id}/download/`, {
+      headers: { 'Authorization': `Token ${token}` }
+    })
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', doc.file_name)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  } catch (err) {
+    console.error('Download error:', err)
+  }
 }
 
-const onCommentAdded = () => {
+const onCommentAdded = async (newCommentFromPlayer) => {
   emit('refresh')
+  if (newCommentFromPlayer) {
+    props.track.comments.push(newCommentFromPlayer)
+
+    // Ждем, пока Vue отрисует новый элемент в DOM
+    await nextTick()
+
+    // Находим контейнер скролла и крутим вниз
+    const scrollEl = document.querySelector('.custom-scroll .p-scrollpanel-content')
+    if (scrollEl) {
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' })
+    }
+  }
 }
+
+
 </script>
 
 <template>
   <Dialog :visible="isOpen" @update:visible="emit('close')" modal :closable="false" :showHeader="false"
-    class="custom-dialog" contentClass="!p-0 !rounded-[2.5rem] !overflow-hidden"
-    :style="{ width: '95vw', maxWidth: '1250px' }" breakPoint="960px">
+    class="custom-dialog" contentClass="!p-0 !rounded-[2.5rem] !overflow-hidden !border-none"
+    :style="{ width: '95vw', maxWidth: '1350px' }">
 
-    <div class="grid grid-cols-1 md:grid-cols-[240px_1fr_300px] h-full md:h-[85vh] bg-white overflow-hidden">
+    <div class="grid grid-cols-1 md:grid-cols-[320px_1fr_340px] h-[92vh] bg-slate-50">
 
-      <div class="bg-slate-50/80 p-6 border-r border-slate-100 flex flex-col gap-8">
-        <Button icon="pi pi-arrow-left" label="Назад к списку" text @click="emit('close')"
-          class="!text-slate-400 hover:!text-slate-600 !font-bold !text-xs !justify-start !p-0" />
+      <aside class="bg-white border-r border-slate-100 flex flex-col overflow-hidden">
+        <div class="p-8 flex flex-col gap-5 h-full overflow-y-auto custom-scrollbar">
+          <Button icon="pi pi-arrow-left" label="НАЗАД К РЕЕСТРУ" text @click="emit('close')" class="!text-blue-600 !font-black !text-[10px] !tracking-[0.2em] !p-5 !justify-start 
+         transition-all duration-200 
+         hover:!text-blue-800 hover:!bg-slate-100/50 active:scale-95" />
 
-        <div class="flex flex-col gap-6">
-          <h3 class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Служебная информация</h3>
+          <section class="flex flex-col gap-5">
+            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Информация</h3>
 
-          <div class="info-block">
-            <span class="label">Автор загрузки</span>
-            <span class="value">{{ track.author_name || 'Не указан' }}</span>
-          </div>
-
-          <div class="info-block">
-            <span class="label">Дата создания</span>
-            <span class="value text-[11px]">{{ new Date(track.created_at).toLocaleString('ru-RU') }}</span>
-          </div>
-
-          <div class="info-block">
-            <span class="label">Уровень доступа</span>
-            <div class="mt-1">
-              <Tag :severity="track.is_private ? 'warn' : 'success'" :value="track.is_private ? 'Приватно' : 'Публично'"
-                class="!text-[8px] !px-2" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="p-8 flex flex-col overflow-y-auto bg-white custom-scrollbar relative">
-        <div v-if="isAdmin" class="flex gap-3 mb-8 justify-center">
-          <Button label="Редактировать" icon="pi pi-pencil" severity="info" outlined @click="handleEditTrack"
-            class="!rounded-xl !text-xs !px-6" />
-          <Button label="Удалить" icon="pi pi-trash" severity="danger" outlined @click="handleDeleteTrack"
-            class="!rounded-xl !text-xs !px-6" />
-        </div>
-
-        <div class="mb-8 text-center">
-          <Tag :value="track.category" severity="info"
-            class="!bg-blue-50 !text-blue-600 !text-[10px] !font-black uppercase px-3" />
-          <h2 class="text-3xl font-black text-slate-800 mt-3 tracking-tighter">{{ track.title }}</h2>
-          <p class="text-slate-400 text-sm mt-2 max-w-md mx-auto italic">{{ track.description || 'Нет описания' }}</p>
-        </div>
-
-        <div class="flex-1 flex flex-col justify-start">
-          <WavePlayer ref="wavePlayerRef" :id="track.id" :src="track.file" :title="track.title"
-            @comment-added="onCommentAdded" />
-        </div>
-      </div>
-
-      <div class="bg-slate-50/30 border-l border-slate-100 flex flex-col h-full overflow-hidden text-left">
-        <div class="p-6 pb-2">
-          <h3 class="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-            <i class="pi pi-comments text-blue-500"></i>
-            Хронология заметок ({{ track.comments?.length || 0 }})
-          </h3>
-        </div>
-
-        <ScrollPanel class="flex-1 w-full px-6 custom-scroll" style= "height: 100%">
-          <div v-if="track.comments && track.comments.length > 0" class="flex flex-col gap-3 py-4 pr-2">
-            <div v-for="c in track.comments" :key="c.id"
-              class="flex flex-col gap-2 p-3 bg-white rounded-xl border border-slate-100 hover:border-blue-200 transition-all shadow-sm group">
-
-              <div class="flex items-center justify-between">
-                <button @click="handleSeek(c.timestamp)"
-                  class="shrink-0 text-[10px] font-mono font-bold bg-blue-50 px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-600 hover:text-white transition-colors">
-                  {{ formatTime(c.timestamp) }}
-                </button>
-                <i class="pi pi-bookmark text-slate-200 text-[10px] group-hover:text-blue-300 transition-colors"></i>
+            <div class="bg-slate-50 p-5 rounded-3xl border border-slate-100 flex flex-col gap-4">
+              <div class="info-card">
+                <span class="label">Идентификатор</span>
+                <span class="value font-mono text-blue-600">#{{ track.id?.toString().padStart(6, '0') }}</span>
               </div>
 
-              <span class="text-[11px] text-slate-600 leading-snug break-words font-medium">
-                {{ c.text }}
+              <div class="info-card">
+                <span class="label">Ответственное лицо</span>
+                <div class="flex items-center gap-3 mt-1">
+                  <div
+                    class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-[10px] text-white font-bold">
+                    {{ track.author_name?.substring(0, 1) }}
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="value text-slate-900">{{ track.author_name }}</span>
+                    <span class="text-[9px] text-slate-400 font-bold uppercase">{{ track.author_department ||
+                      'Департамент' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Документация</h3>
+            <div v-if="track.documents?.length" class="space-y-2">
+              <div v-for="doc in track.documents" :key="doc.id"
+                class="group flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                    <i class="pi pi-file-pdf text-red-400 text-xs"></i>
+                  </div>
+                  <span class="text-[11px] font-bold text-slate-700 truncate max-w-[140px]">{{ doc.file_name }}</span>
+                </div>
+                <Button icon="pi pi-download" text rounded @click="downloadDoc(doc)"
+                  class="!w-8 !h-8 !text-slate-400 group-hover:!text-blue-600" />
+              </div>
+            </div>
+          </section>
+
+          <div v-if="isAdmin" class="mt-auto pt-6 flex flex-col gap-3">
+            <Button label="Правка данных" icon="pi pi-pencil" severity="secondary"
+              class="!text-[10px] !font-bold !py-4 !rounded-2xl !bg-slate-100 !border-none !text-slate-700 hover:!bg-slate-200" />
+            <Button label="Удалить протокол" icon="pi pi-trash" severity="danger" text
+              class="!text-[10px] !font-bold !py-4 !rounded-2xl" />
+          </div>
+        </div>
+      </aside>
+
+      <main class="flex flex-col overflow-hidden">
+        <div class="p-5 overflow-y-auto custom-scrollbar flex-1 flex flex-col">
+          <header class="mb-5">
+            <div class="flex items-center gap-4 mb-5">
+              <span
+                class="bg-blue-600 text-white text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider">
+                {{ track.category }}
+              </span>
+              <span class="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+                {{ new Date(track.created_at).toLocaleDateString('ru-RU', {
+                  day: 'numeric', month: 'long', year:
+                'numeric' }) }}
               </span>
             </div>
-          </div>
+            <h2 class="text-2xl font-black text-slate-900 tracking-tighter leading-none mb-8">{{ track.title }}</h2>
+            <p class="text-slate-400 text-l leading-relaxed font-medium max-w-3xl">
+              {{ track.description || 'Описание отсутствует.' }}
+            </p>
+          </header>
 
-          <div v-else class="flex flex-col items-center justify-center py-20 text-slate-300">
-            <i class="pi pi-inbox text-2xl mb-2 opacity-50"></i>
-            <p class="text-[9px] font-bold uppercase tracking-widest text-center">Заметок пока нет</p>
+          <div class="mt-auto mb-8">
+            <WavePlayer ref="wavePlayerRef" :id="track.id" :src="track.file" :title="track.title"
+              @comment-added="onCommentAdded" />
+          </div>
+        </div>
+      </main>
+
+      <section class="bg-white border-l border-slate-100 flex flex-col">
+        <div class="p-8 border-b border-slate-50 flex items-center justify-between">
+          <h3 class="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">События записи</h3>
+          <div class="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black">
+            {{ track.comments?.length || 0 }}
+          </div>
+        </div>
+
+        <ScrollPanel class="flex-1 w-full h-full p-4">
+          <div v-if="track.comments?.length" class="flex flex-col gap-3 p-4">
+            <div v-for="c in track.comments" :key="c.id"
+              class="group flex flex-col gap-3 p-5 bg-slate-50 rounded-[1.5rem] border border-transparent hover:border-blue-100 hover:bg-white hover:shadow-xl hover:shadow-blue-900/5 transition-all cursor-pointer"
+              @click="handleSeek(c.timestamp)">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black text-white bg-blue-600 px-3 py-1 rounded-full">
+                  {{ formatTime(c.timestamp) }}
+                </span>
+                <i class="pi pi-play text-[10px] text-slate-300 group-hover:text-blue-600"></i>
+              </div>
+              <p class="text-[13px] text-slate-700 leading-snug font-semibold">{{ c.text }}</p>
+            </div>
           </div>
         </ScrollPanel>
-      </div>
+      </section>
 
     </div>
   </Dialog>
@@ -178,22 +215,40 @@ const onCommentAdded = () => {
 <style scoped>
 @reference "../style.css";
 
-.info-block {
+.info-card {
   @apply flex flex-col gap-0.5;
 }
 
 .label {
-  @apply text-[8px] text-slate-400 font-bold uppercase tracking-widest;
+  @apply text-[9px] text-slate-400 font-black uppercase tracking-wider;
 }
 
 .value {
-  @apply text-xs font-bold text-slate-600;
+  @apply text-xs font-bold text-slate-800;
 }
 
-:deep(.p-scrollpanel-bar) {
-  background: #cbd5e1 !important;
-  width: 4px !important;
-  opacity: 1 !important;
-  z-index: 10;
+.tech-badge {
+  @apply p-4 rounded-2xl border flex flex-col gap-1;
+}
+
+.badge-label {
+  @apply text-[9px] uppercase font-black tracking-widest;
+}
+
+.badge-value {
+  @apply text-[11px] font-bold;
+}
+
+/* Кастомный скролл */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full;
+}
+
+:deep(.p-dialog-content) {
+  @apply shadow-2xl;
 }
 </style>

@@ -33,7 +33,6 @@ const formatTime = (seconds) => {
     return `${minutes}:${secondsRem < 10 ? '0' : ''}${secondsRem}`
 }
 
-// ФУНКЦИЯ СКАЧИВАНИЯ (СВОЯ)
 const handleDownload = async () => {
     const downloadUrl = `http://127.0.0.1:8000/api/records/${props.id}/download/`
     const token = localStorage.getItem('user-token');
@@ -42,9 +41,7 @@ const handleDownload = async () => {
         const response = await fetch(downloadUrl, {
             headers: { 'Authorization': `Token ${token}` }
         });
-
         if (!response.ok) throw new Error('Download failed');
-
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -52,7 +49,6 @@ const handleDownload = async () => {
         a.download = `${props.title || 'audio'}.mp3`;
         document.body.appendChild(a);
         a.click();
-
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
     } catch (err) {
@@ -61,25 +57,26 @@ const handleDownload = async () => {
 };
 
 const initPlayer = () => {
-    // 1. Инициализируем Plyr БЕЗ кнопки download внутри
     if (player.value) player.value.destroy()
+    if (wavesurfer.value) wavesurfer.value.destroy()
+
     player.value = new Plyr(audioRef.value, {
-        blankVideo: '',
         controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'settings'],
         speed: { selected: 1, options: [0.5, 1, 1.5, 2] }
     })
 
-    // 2. Инициализируем WaveSurfer
-    if (wavesurfer.value) wavesurfer.value.destroy()
     wavesurfer.value = WaveSurfer.create({
         container: waveformRef.value,
         media: audioRef.value,
-        waveColor: '#cbd5e1',
-        progressColor: '#3b82f6',
-        barWidth: 2,
-        height: 60,
+        waveColor: '#e2e8f0', // Светло-серый для неактивной части
+        progressColor: '#2563eb', // Насыщенный синий для прогресса
+        barWidth: 2, // Чуть тоньше линии
+        barGap: 3,
+        barRadius: 4,
+        height: 80,
         responsive: true,
-        cursorColor: '#3b82f6'
+        cursorColor: '#2563eb',
+        cursorWidth: 2
     })
 
     wavesurfer.value.on('timeupdate', (time) => {
@@ -98,14 +95,14 @@ const submitComment = async () => {
     const currentPos = wavesurfer.value ? Math.floor(wavesurfer.value.getCurrentTime()) : 0
 
     try {
-        await axios.post(`http://127.0.0.1:8000/api/audio/${props.id}/add_comment/`, {
+        const response = await axios.post(`http://127.0.0.1:8000/api/audio/${props.id}/add_comment/`, {
             text: newComment.value,
             timestamp: currentPos
         }, {
             headers: { 'Authorization': `Token ${token}` }
         })
         newComment.value = ''
-        emit('comment-added')
+        emit('comment-added', response.data)
     } catch (err) {
         console.error('Ошибка отправки комментария:', err)
     } finally {
@@ -117,6 +114,12 @@ const seekTo = (seconds) => {
     if (wavesurfer.value) {
         wavesurfer.value.setTime(seconds)
         wavesurfer.value.play()
+    }
+}
+
+const skip = (amount) => {
+    if (wavesurfer.value) {
+        wavesurfer.value.skip(amount)
     }
 }
 
@@ -135,49 +138,76 @@ watch(() => props.id, async () => {
 </script>
 
 <template>
-    <div class="flex flex-col w-full bg-white rounded-[2rem] border border-slate-100 shadow-2xl shadow-slate-200/50">
+    <div
+        class="flex flex-col w-full bg-white rounded-[2.5rem] border border-slate-100 p-10 shadow-2xl shadow-blue-900/10">
 
-        <div class="flex-shrink-0 px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+        <div class="flex items-center justify-between mb-10">
             <div class="flex items-center gap-4">
-                <div
-                    class="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm border border-slate-100">
+                <div class="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
                     <i class="pi pi-volume-up text-blue-600"></i>
                 </div>
-                <div class="flex flex-col overflow-hidden text-left">
-                    <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest block mb-0.5">Панель
-                        управления</span>
-                    <h4 class="text-sm font-bold text-slate-700 truncate max-w-[200px]">{{ title || 'Аудиофайл' }}</h4>
+                <div class="flex flex-col text-left">
+                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Режим
+                        прослушивания</span>
+                    <h4 class="text-base font-black text-slate-800">{{ title }}</h4>
                 </div>
             </div>
 
-            <Button icon="pi pi-download" @click="handleDownload"
-                class="!p-2 !rounded-lg !bg-white !border-slate-200 !text-slate-600 hover:!text-blue-600 hover:!border-blue-200 shadow-sm transition-all" />
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-mono font-black text-blue-600">{{ currentTimeText }}</span>
+                <span class="text-sm font-mono text-slate-300">/</span>
+                <span class="text-sm font-mono text-slate-400">{{ durationText }}</span>
+            </div>
         </div>
 
-        <div class="p-6 flex flex-col gap-6">
-            <div class="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-                <div ref="waveformRef"></div>
-                <div class="flex justify-between mt-2 text-[10px] font-mono font-bold">
-                    <span class="text-blue-600">{{ currentTimeText }}</span>
-                    <span class="text-slate-400">{{ durationText }}</span>
+        <div class="relative mb-10 bg-gradient-to-b from-slate-50 to-white rounded-[2rem] p-8 border border-slate-50">
+            <div ref="waveformRef" class="cursor-pointer"></div>
+        </div>
+
+        <div class="flex flex-col gap-10">
+            <audio ref="audioRef" :src="src" crossorigin="anonymous" class="hidden"></audio>
+
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100 shadow-sm">
+                    <Button text rounded @click="skip(-10)"
+                        class="!flex !items-center !justify-center !gap-1 !px-3 !py-2 !text-slate-400 hover:!text-blue-600 hover:!bg-white hover:shadow-sm transition-all">
+                        <i class="pi pi-angle-left text-xs font-bold"></i>
+                        <span class="text-[10px] font-black tracking-tighter">10с</span>
+                    </Button>
+
+                    <div class="w-[1px] h-4 bg-slate-200"></div>
+
+                    <Button text rounded @click="skip(10)"
+                        class="!flex !items-center !justify-center !gap-1 !px-3 !py-2 !text-slate-400 hover:!text-blue-600 hover:!bg-white hover:shadow-sm transition-all">
+                        <span class="text-[10px] font-black tracking-tighter">10с</span>
+                        <i class="pi pi-angle-right text-xs font-bold"></i>
+                    </Button>
                 </div>
+
+                <div class="flex-1 custom-plyr-container">
+                </div>
+
+                <Button icon="pi pi-cloud-download" @click="handleDownload"
+                    class="!text-[10px] !font-black !bg-slate-900 !border-none !text-white !px-8 !py-4 !rounded-2xl hover:!bg-blue-600 shadow-xl shadow-slate-200 transition-all"
+                    label="ЭКСПОРТ" />
             </div>
 
-            <div class="plyr-wrapper">
-                <audio ref="audioRef" :src="src" controls crossorigin="anonymous"></audio>
-            </div>
+            <div class="mt-8 pt-8 border-t border-slate-100">
+                <div class="flex flex-col gap-2 text-left">
+                    <span class="ml-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        Новая заметка на {{ currentTimeText }}
+                    </span>
 
-            <div class="p-4 rounded-2xl bg-blue-50/30 border border-blue-100/50">
-                <div class="flex items-center gap-1.5 mb-2 text-[10px] font-bold text-blue-500 uppercase px-1">
-                    <i class="pi pi-clock"></i>
-                    <span>Оставить заметку на {{ currentTimeText }}</span>
-                </div>
-                <div class="flex gap-2 text-left">
-                    <InputText v-model="newComment" placeholder="Введите текст комментария..."
-                        @keyup.enter="submitComment"
-                        class="flex-1 !text-xs !rounded-xl !border-slate-200 !bg-white !py-2.5 !px-4 focus:!border-blue-400 transition-all !shadow-sm" />
-                    <Button icon="pi pi-send" @click="submitComment" :loading="isSubmitting"
-                        class="!rounded-xl !w-11 !bg-blue-600 !border-none !text-white shadow-lg shadow-blue-200" />
+                    <div class="relative w-full flex items-center">
+                        <InputText v-model="newComment" placeholder="Введите текст замечания..."
+                            @keyup.enter="submitComment"
+                            class="w-full !rounded-[1.25rem] !pl-6 !pr-14 !py-5 !border-slate-100 !bg-slate-50 focus:!bg-white focus:!border-blue-400 focus:!ring-4 focus:!ring-blue-50/50 transition-all !text-sm !font-medium" />
+
+                        <Button @click="submitComment" :loading="isSubmitting"
+                            class="!absolute right-2 !w-11 !h-11 !rounded-xl !bg-blue-600 !border-none !text-white hover:!bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200">
+                            <i class="pi pi-send text-sm"></i>
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -185,11 +215,36 @@ watch(() => props.id, async () => {
 </template>
 
 <style scoped>
+/* Стилизация Plyr под CRM Ростовстата (белый, светлый) */
 :deep(.plyr--audio .plyr__controls) {
-    background: white !important;
-    border-radius: 12px !important;
+    background: #f8fafc !important;
+    /* Slate-50 */
+    border-radius: 1.25rem !important;
     border: 1px solid #f1f5f9 !important;
-    padding: 8px !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    padding: 10px 15px !important;
+    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.03) !important;
+}
+
+:deep(.plyr--audio) {
+    --plyr-color-main: #2563eb;
+    /* Blue-600 */
+}
+
+/* Скрываем прогресс-бар Plyr, так как WaveSurfer — наш основной прогресс-бар */
+:deep(.plyr__progress__container) {
+    display: none !important;
+}
+
+:deep(.plyr__time) {
+    font-size: 11px;
+    font-family: monospace;
+}
+
+:deep(.p-button) {
+    margin: 0;
+}
+
+:deep(.p-inputtext:enabled:focus) {
+    box-shadow: none;
 }
 </style>

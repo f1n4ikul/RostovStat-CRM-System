@@ -1,10 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AudioViewSet, register_user, upload_audio, toggle_favorite, get_user_favorites,get_user_profile,add_comment, custom_auth_token, get_all_users_for_admin, change_user_role, delete_audio, download_audio
+from .views import PortalNewsViewSet, RegionalStatViewSet, PostViewSet, AudioViewSet, register_user, upload_audio, toggle_favorite, get_user_favorites,get_user_profile,add_comment, custom_auth_token, get_all_users_for_admin, change_user_role, delete_audio, download_audio, toggle_post_like
 from . import views
 
 router = DefaultRouter()
 router.register(r'records', AudioViewSet, basename='audiorecord')
+router.register(r'posts', PostViewSet, basename='post')
+router.register(r'news', PortalNewsViewSet, basename='news')
+router.register(r'stats', RegionalStatViewSet, basename='stats')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -19,4 +22,6 @@ urlpatterns = [
     path('admin/users/<int:user_id>/role/', change_user_role),
     path('records/<int:pk>/delete/', delete_audio),
     path('records/<int:pk>/download/', download_audio),
+    path('posts/<int:pk>/like/', toggle_post_like),
+    path('documents/<int:pk>/download/', views.download_document, name='download-document'),
 ]

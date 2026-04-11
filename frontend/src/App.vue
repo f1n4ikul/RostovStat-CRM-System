@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute} from 'vue-router'
 
 // PrimeVue компоненты
 import Button from 'primevue/button'
@@ -15,6 +15,7 @@ import Login from './components/Login.vue'
 import Register from './components/Register.vue'
 import UploadModal from './components/UploadModal.vue'
 
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
@@ -31,6 +32,10 @@ const isSystemAdmin = computed(() => {
     userProfile.value?.is_staff === true ||
     userProfile.value?.is_superuser === true
   );
+});
+
+const showAdminButton = computed(() => {
+  return isSystemAdmin.value && route.path !== '/admin';
 });
 
 const canUpload = computed(() => {
@@ -58,6 +63,19 @@ onMounted(async () => {
     await fetchUserProfile()
   }
 })
+
+const onResourceUploaded = () => {
+  showUploadModal.value = false
+  // Если мы сейчас находимся в медиатеке, было бы неплохо обновить список
+  // Это можно сделать через событие в шине (mitt) или просто перезагрузкой, 
+  // но самый простой способ — если LibraryView сама следит за обновлениями.
+  toast.add({
+    severity: 'success',
+    summary: 'Загружено',
+    detail: 'Файл успешно добавлен в систему',
+    life: 3000
+  });
+}
 
 // Обработка входа
 const handleAuthSuccess = async () => {
@@ -108,16 +126,24 @@ const goToAdmin = () => {
           <h1
             class="text-xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-2 cursor-pointer"
             @click="router.push('/')">
-            <i class="pi pi-bolt text-blue-600 text-2xl"></i>
-            Media<span class="text-blue-600 font-light text-sm tracking-widest ml-1">Archive</span>
+            <i class="pi pi-chart-bar text-blue-600 text-2xl"></i> Rostov<span
+              class="text-blue-600 font-light text-sm tracking-widest ml-1">Stat CRM</span>
           </h1>
 
           <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+
+            <Button label="Лента" icon="pi pi-home" text size="small" @click="router.push('/')"
+              :class="{ '!bg-white !shadow-sm': route.path === '/' }" />
+
+            <Button label="Медиатека" icon="pi pi-images" text size="small" @click="router.push('/library')"
+              :class="{ '!bg-white !shadow-sm': route.path === '/library' }" />
+
             <Button v-if="canUpload" label="Загрузить" icon="pi pi-plus" size="small" @click="showUploadModal = true"
               class="!rounded-lg !bg-blue-600 !border-none" />
 
-            <Button v-if="isSystemAdmin" label="Админ-панель" icon="pi pi-shield" size="small" severity="warn" text
+            <Button v-if="showAdminButton" label="Админ-панель" icon="pi pi-shield" size="small" severity="warn" text
               @click="router.push('/admin')" />
+
           </div>
         </div>
 

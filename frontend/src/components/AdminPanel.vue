@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
-import {useRouter} from 'vue-router'
+import { useRouter } from 'vue-router'
 
 // Компоненты PrimeVue
 import DataTable from 'primevue/datatable'
@@ -13,7 +13,11 @@ import Tag from 'primevue/tag'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
-import Skeleton from 'primevue/skeleton'
+
+const props = defineProps({
+    user: Object,
+    isAdmin: Boolean
+})
 
 const users = ref([])
 const isLoading = ref(true)
@@ -27,49 +31,55 @@ const availableRoles = [
 ]
 
 const fetchUsers = async () => {
-    const userInfo = JSON.parse(localStorage.getItem('user-info'));
+    // ВАЖНО: Проверяем isAdmin. Если роутер еще не прокинул пропсу, 
+    // берем запасной вариант из localStorage
+    const userInfo = JSON.parse(localStorage.getItem('user-info') || '{}');
+    const hasAccess = props.isAdmin || userInfo?.role_code === 'admin';
 
-    // 1. Проверяем права ДО того, как включать индикатор загрузки
-    const isAdmin = userInfo?.role_code === 'admin' || userInfo?.permissions?.is_admin === true;
-
-    if (!isAdmin) {
-        console.warn('Доступ запрещен: пользователь не является администратором');
-        isLoading.value = false;
-        // Если ты на главной странице используешь currentPage для переключения, 
-        // то router.push может не понадобиться, но для надежности оставим
+    if (!hasAccess) {
+        console.warn('Доступ запрещен');
         router.push('/');
         return;
     }
 
     isLoading.value = true
     try {
+        const token = localStorage.getItem('user-token');
         const response = await axios.get('http://127.0.0.1:8000/api/admin/users/', {
-            headers: { 'Authorization': `Token ${localStorage.getItem('user-token')}` }
+            headers: { 'Authorization': `Token ${token}` }
         });
         users.value = response.data
     } catch (e) {
-        console.error(e);
-        // Исправлено: используем 'e', так как в catch(e)
-        if (e.response?.status === 403) {
-            router.push('/dashboard');
-        } else {
-            Swal.fire('Ошибка', 'Не удалось загрузить список пользователей', 'error');
-        }
+        console.error("Ошибка загрузки пользователей:", e);
+        Swal.fire('Ошибка', 'Не удалось загрузить список', 'error');
     } finally {
-        isLoading.value = false // Теперь точно сработает
+        // Гарантируем отключение лоадера
+        isLoading.value = false
     }
 }
 
 const updateUserRole = async (userId, newRole) => {
-    // Не забывай про токен и здесь тоже!
+    if (userId === props.user?.id) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Внимание',
+            text: 'Вы не можете изменить роль самому себе через эту панель. Это защитный механизм, чтобы вы не потеряли доступ к админке.',
+        });
+
+        // Откатываем выбор в таблице назад
+        const user = users.value.find(u => u.id === userId);
+        if (user) user.role = props.user.role_code;
+        return;
+    }
+
     try {
         await axios.post(`http://127.0.0.1:8000/api/admin/users/${userId}/role/`,
             { role: newRole },
             { headers: { 'Authorization': `Token ${localStorage.getItem('user-token')}` } }
         )
-
+        // Локально обновляем роль в списке
         const user = users.value.find(u => u.id === userId)
-        if (user) user.role_code = newRole
+        if (user) user.role = newRole // убедись, что поле называется role или role_code
 
         Swal.fire({
             icon: 'success',
@@ -78,7 +88,7 @@ const updateUserRole = async (userId, newRole) => {
             showConfirmButton: false
         })
     } catch (e) {
-        Swal.fire('Ошибка', e.response?.data?.error || 'Не удалось сменить роль', 'error')
+        Swal.fire('Ошибка', 'Не удалось сменить роль', 'error')
     }
 }
 
@@ -86,120 +96,79 @@ onMounted(fetchUsers)
 </script>
 
 <template>
-    <div class="p-6 md:p-10 min-h-screen bg-slate-50">
-        <div class="max-w-7xl mx-auto space-y-8">
+    <div class="min-h-screen bg-[#f8fafc] -m-6 p-6 md:p-12">
+        <div class="max-w-7xl mx-auto">
+            <nav class="mb-8">
+                <Button icon="pi pi-arrow-left" label="Вернуться в архив"
+                    class="p-button-text p-button-secondary !text-xs !font-bold uppercase tracking-widest"
+                    @click="router.push('/')" />
+            </nav>
 
-            <header
-                class="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200">
-                <div>
-                    <h1 class="text-3xl font-black text-slate-950 uppercase tracking-tighter italic">Панель управления
-                    </h1>
-                    <p class="text-slate-500 mt-1 font-medium">Администрирование прав доступа сотрудников Росстата</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <IconField>
-                        <InputIcon class="pi pi-search" />
-                        <InputText v-model="globalFilter" placeholder="Поиск сотрудника..."
-                            class="!rounded-2xl !bg-white" />
-                    </IconField>
-                    <Button icon="pi pi-refresh" rounded outlined severity="secondary" @click="fetchUsers"
-                        :loading="isLoading" />
+            <header class="mb-12">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <span
+                                class="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase">Система</span>
+                        </div>
+                        <h1 class="text-5xl font-black text-slate-900 tracking-tight uppercase italic">
+                            Управление <span class="text-blue-600">Доступом</span>
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+                        <IconField>
+                            <InputIcon class="pi pi-search" />
+                            <InputText v-model="globalFilter" placeholder="Поиск сотрудника..."
+                                class="!border-none !shadow-none !bg-transparent w-64" />
+                        </IconField>
+                        <Button icon="pi pi-refresh" rounded severity="secondary" @click="fetchUsers"
+                            :loading="isLoading" />
+                    </div>
                 </div>
             </header>
 
-            <div
-                class="card bg-white rounded-[2.5rem] shadow-xl shadow-slate-100/50 overflow-hidden border border-slate-100">
-
-                <div v-if="isLoading" class="p-6 space-y-4">
-                    <Skeleton v-for="i in 5" :key="i" height="3rem" borderRadius="1rem" />
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                    <div class="text-slate-400 text-[10px] font-black uppercase mb-1">Всего сотрудников</div>
+                    <div class="text-3xl font-black text-slate-900">{{ users.length }}</div>
                 </div>
+                <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                    <div class="text-amber-500 text-[10px] font-black uppercase mb-1">Администраторы</div>
+                    <div class="text-3xl font-black text-slate-900">
+                        {{users.filter(u => u.role === 'admin').length}}
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                    <div class="text-blue-600 text-[10px] font-black uppercase mb-1">Статус сервера</div>
+                    <div class="text-sm font-bold text-green-500 uppercase">Online</div>
+                </div>
+            </div>
 
-                <DataTable v-else :value="users" :paginator="true" :rows="10"
+            <div class="bg-white rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+                <DataTable :value="users" :paginator="true" :rows="10" :loading="isLoading"
                     :filters="{ 'global': { value: globalFilter, matchMode: 'contains' } }" stripedRows
-                    responsiveLayout="stack" class="p-datatable-modern">
-                    <Column header="Сотрудник / Email" sortable field="username">
+                    class="p-datatable-lg">
+
+                    <Column field="username" header="Сотрудник" sortable></Column>
+                    <Column field="email" header="Email"></Column>
+                    <Column field="role" header="Роль">
                         <template #body="{ data }">
-                            <div class="flex items-center gap-3">
-                                <div class="flex flex-col">
-                                    <div class="font-extrabold text-slate-950 flex items-center gap-2">
-                                        {{ data.username }}
-                                        <i v-if="data.role === 'admin'" class="pi pi-shield text-amber-500 text-xs"></i>
-                                    </div>
-                                    <span class="text-xs text-slate-500 font-medium">{{ data.email }}</span>
-                                </div>
-                            </div>
+                            <Tag :value="data.role"
+                                :severity="availableRoles.find(r => r.code === data.role)?.severity" />
                         </template>
                     </Column>
-
-                    <Column header="Отдел" sortable field="department">
+                    <Column header="Действие" bodyClass="text-right">
                         <template #body="{ data }">
-                            <span class="text-slate-600 font-semibold text-sm">{{ data.department }}</span>
-                        </template>
-                    </Column>
-
-                    <Column header="Регистрация" sortable field="date_joined">
-                        <template #body="{ data }">
-                            <span class="text-slate-400 text-xs font-mono">{{ data.date_joined }}</span>
-                        </template>
-                    </Column>
-
-                    <Column header="Текущая роль">
-                        <template #body="{ data }">
-                            <Tag :value="availableRoles.find(r => r.code === data.role)?.name.split(' ')[0]"
-                                :severity="availableRoles.find(r => r.code === data.role)?.severity"
-                                class="!text-[9px] !font-black uppercase tracking-widest" />
-                        </template>
-                    </Column>
-
-                    <Column header="Назначить права" headerClass="text-right" bodyClass="text-right">
-                        <template #body="{ data }">
-                            <Select v-model="data.role" :options="availableRoles" optionLabel="name" optionValue="code"
+                            <Select v-model="data.role" :options="availableRoles" optionLabel="name" optionValue="code"                                 :disabled="data.id === props.user?.id"
+                                :class="{ 'opacity-50': data.id === props.user?.id }"
                                 @change="(e) => updateUserRole(data.id, e.value)"
-                                class="!text-xs !font-bold !bg-slate-50 !border-slate-200 !rounded-xl text-left"
-                                style="min-width: 200px;" />
+                                class="!text-xs !bg-slate-50 !rounded-xl" style="min-width: 150px;" />
                         </template>
                     </Column>
 
-                    <template #empty>
-                        <div class="text-center py-20 text-slate-400">
-                            <i class="pi pi-users text-4xl mb-3 block"></i>
-                            <p class="text-xl font-bold">Сотрудники не найдены</p>
-                        </div>
-                    </template>
                 </DataTable>
             </div>
         </div>
     </div>
 </template>
-
-<style scoped>
-/* Кастомизация таблицы под общий стиль */
-:deep(.p-datatable-header) {
-    background: transparent;
-    border: none;
-}
-
-:deep(.p-datatable-thead > tr > th) {
-    background: #0f172a;
-    /* slate-900 */
-    color: white;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 1.5rem;
-}
-
-:deep(.p-datatable-tbody > tr) {
-    transition: background-color 0.2s;
-}
-
-:deep(.p-datatable-tbody > tr:hover) {
-    background-color: #f1f5f9 !important;
-}
-
-:deep(.p-paginator) {
-    border-radius: 0 0 2.5rem 2.5rem;
-    padding: 1rem;
-    border-top: 1px solid #f1f5f9;
-}
-</style>

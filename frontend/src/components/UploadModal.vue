@@ -12,10 +12,11 @@ import Checkbox from 'primevue/checkbox'
 import FileUpload from 'primevue/fileupload'
 
 const title = ref('')
+const extraFiles = ref([]) // Дополнительные документы
 const description = ref('')
 const category = ref('other')
 const isPrivate = ref(false)
-const file = ref(null)
+const file = ref(null) // Основное аудио
 const tags = ref('')
 const isUploading = ref(false)
 
@@ -29,9 +30,16 @@ const categories = [
     { value: 'meeting', label: 'Совещание', icon: '👥' }
 ]
 
-// Метод для обработки выбора файла (через кастомное событие PrimeVue)
 const onFileSelect = (event) => {
     file.value = event.files[0]
+}
+
+const onExtraFilesSelect = (event) => {
+    extraFiles.value = event.files
+}
+
+const removeExtraFile = (index) => {
+    extraFiles.value.splice(index, 1)
 }
 
 const upload = async () => {
@@ -39,7 +47,7 @@ const upload = async () => {
         return Swal.fire({
             icon: 'warning',
             title: 'Внимание',
-            text: 'Укажите название и выберите файл',
+            text: 'Укажите название и выберите основной аудиофайл',
             confirmButtonColor: '#3b82f6'
         })
     }
@@ -53,6 +61,11 @@ const upload = async () => {
     formData.append('tags', tags.value)
     formData.append('is_private', isPrivate.value ? 'true' : 'false')
     formData.append('file', file.value)
+
+    // Добавляем все доп. документы под одним ключом 'documents'
+    extraFiles.value.forEach((f) => {
+        formData.append('documents', f)
+    })
 
     isUploading.value = true
     Swal.fire({
@@ -81,9 +94,9 @@ const upload = async () => {
 </script>
 
 <template>
-    <div class="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
         <div
-            class="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-300 border border-slate-100">
+            class="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-300 border border-slate-100 my-auto">
 
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-2xl font-black text-slate-800 tracking-tight">Новая запись</h3>
@@ -116,17 +129,36 @@ const upload = async () => {
                     </Select>
                 </div>
 
-                <div class="flex flex-col gap-4">
+                <div class="flex flex-col gap-3">
                     <InputText v-model="tags" placeholder="Теги через запятую" class="w-full !rounded-xl" />
                     <Textarea v-model="description" rows="2" autoResize placeholder="Описание записи..."
                         class="w-full !rounded-xl" />
                 </div>
 
                 <div class="flex flex-col gap-1">
-                    <label class="text-[10px] font-bold uppercase text-slate-400 ml-1">Аудиофайл</label>
+                    <label class="text-[10px] font-bold uppercase text-slate-400 ml-1">Аудиофайл (Основа)</label>
                     <FileUpload mode="basic" @select="onFileSelect" accept="audio/*" :maxFileSize="50000000"
-                        chooseLabel="Выбрать файл" class="p-button-outlined p-button-secondary w-full !rounded-xl" />
-                    <small v-if="file" class="text-blue-600 font-bold ml-1 mt-1">✓ {{ file.name }}</small>
+                        chooseLabel="Выбрать аудио" class="p-button-outlined p-button-secondary w-full !rounded-xl" />
+                    <small v-if="file" class="text-blue-600 font-bold ml-1 mt-1 flex items-center gap-1">
+                        <i class="pi pi-check-circle"></i> {{ file.name }}
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-bold uppercase text-slate-400 ml-1">Прикрепить документы (PDF, DOCX,
+                        XLSX)</label>
+                    <FileUpload mode="basic" @select="onExtraFilesSelect" :multiple="true"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv" chooseLabel="Добавить файлы" severity="info"
+                        class="p-button-outlined w-full !rounded-xl" />
+
+                    <div v-if="extraFiles.length > 0" class="flex flex-wrap gap-2 mt-2">
+                        <div v-for="(f, index) in extraFiles" :key="f.name"
+                            class="text-[10px] bg-slate-50 px-2 py-1 rounded-lg text-slate-600 border border-slate-200 flex items-center gap-2">
+                            <span class="truncate max-w-[120px]">📎 {{ f.name }}</span>
+                            <i class="pi pi-times cursor-pointer hover:text-red-500"
+                                @click="removeExtraFile(index)"></i>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-3 p-1">
@@ -147,7 +179,6 @@ const upload = async () => {
 </template>
 
 <style scoped>
-/* Убираем стандартные синие обводки, если они конфликтуют с Tailwind */
 :deep(.p-inputtext),
 :deep(.p-select),
 :deep(.p-textarea) {
@@ -156,7 +187,20 @@ const upload = async () => {
 }
 
 :deep(.p-inputtext:focus),
-:deep(.p-select:focus) {
-    box-shadow: 0 0 0 2px #3b82f6 !important;
+:deep(.p-select:focus),
+:deep(.p-textarea:focus) {
+    box-shadow: 0 0 0 2px #3b82f633 !important;
+    border-color: #3b82f6 !important;
+}
+
+/* Фикс для прокрутки, если форма не влезает в экран */
+.fixed {
+    align-items: center;
+}
+
+@media (max-height: 800px) {
+    .fixed {
+        align-items: flex-start;
+    }
 }
 </style>
