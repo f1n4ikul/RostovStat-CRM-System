@@ -3,7 +3,6 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Секретный ключ для разработки
 SECRET_KEY = 'django-insecure-diplom-project-key'
 
 DEBUG = True
@@ -32,6 +31,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
     ],
 }
 
@@ -68,10 +70,21 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # База данных SQLite (согласно архитектуре диплома)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'rostovstat_crm',       # Имя базы данных
+        'USER': 'postgres',             # Имя пользователя (обычно дефолтный postgres)
+        'PASSWORD': 'postgres',    # Твой пароль от PostgreSQL
+        'HOST': '127.0.0.1',            # Локальный хост
+        'PORT': '5432',                 # Стандартный порт Postgres
     }
 }
 

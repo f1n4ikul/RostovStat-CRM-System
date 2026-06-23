@@ -1,7 +1,10 @@
+// Название файла: src/router/index.js
 import { createRouter, createWebHistory } from "vue-router";
-import LibraryView from "../views/LibraryView.vue";
+// ИСПРАВЛЕНО: Импортируем переменную с тем же именем, что используем в маршрутах
+import LibraryDetailView from "../views/LibraryDetailView.vue";
 import Profile from "../components/Profile.vue";
 import AdminPanel from "../components/AdminPanel.vue";
+import AudioDetailView from "../components/AudioDetailView.vue"; // ИСПРАВЛЕНО: имя переменной
 
 const routes = [
   {
@@ -12,7 +15,12 @@ const routes = [
   {
     path: "/library",
     name: "library",
-    component: LibraryView,
+    component: LibraryDetailView, // Теперь переменная существует!
+  },
+  {
+    path: "/library/:id",
+    name: "audio-detail",
+    component: AudioDetailView, // Теперь переменная существует!
   },
   {
     path: "/profile",
@@ -23,7 +31,6 @@ const routes = [
     path: "/admin",
     name: "admin",
     component: AdminPanel,
-    // Опционально: мета-поле для проверки прав в будущем
     meta: { requiresAdmin: true },
   },
 ];

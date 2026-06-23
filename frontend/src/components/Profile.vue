@@ -19,7 +19,6 @@ const isSettingsMode = ref(false)
 const newPassword = ref('')
 const message = ref('')
 
-// Загрузка данных при входе на страницу
 onMounted(async () => {
     try {
         const [resProfile, resTracks] = await Promise.all([
@@ -30,7 +29,6 @@ onMounted(async () => {
         allTracks.value = resTracks.data
     } catch (e) {
         console.error("Ошибка загрузки профиля:", e)
-        // Если токен протух — отправляем на логин
         if (e.response?.status === 401) handleLogout()
     }
 })
@@ -47,7 +45,6 @@ const saveSettings = async () => {
         message.value = "Пароль слишком короткий"
         return
     }
-    // Здесь будет твой реальный запрос к API для смены пароля
     message.value = "Настройки сохранены!"
     setTimeout(() => {
         isSettingsMode.value = false
@@ -66,149 +63,175 @@ const getRoleSeverity = (role) => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#f1f5f9] pb-12">
-        <div class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8">
-            <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <Button icon="pi pi-chevron-left" @click="router.push('/')"
-                        class="!p-button-text !p-button-secondary !p-button-sm !rounded-xl" label="Назад к архиву" />
-                    <div class="h-4 w-[1px] bg-slate-200 mx-2"></div>
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Личный кабинет</span>
-                </div>
+    <div class="w-full mx-auto animate-in fade-in duration-500 pb-12">
 
-                <div class="flex items-center gap-3">
-                    <Tag v-if="profile" :value="profile.role" :severity="getRoleSeverity(profile.role_code)"
-                        class="!rounded-lg !text-[9px] !font-black uppercase tracking-tighter" />
-                </div>
+        <!-- Внутренний подзаголовок (Хлебные крошки / Назад) -->
+        <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+            <div class="flex items-center gap-3">
+                <Button icon="pi pi-chevron-left" @click="router.push('/')"
+                    class="!p-button-text !p-button-secondary !p-button-sm !rounded-xl" label="Назад к архиву" />
+                <div class="h-4 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 hidden sm:inline">Личный
+                    кабинет</span>
+            </div>
+
+            <div v-if="profile"
+                class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-none pt-2 sm:pt-0">
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 sm:hidden">Статус
+                    аккаунта:</span>
+                <Tag :value="profile.role" :severity="getRoleSeverity(profile.role_code)"
+                    class="!rounded-lg !text-[9px] !font-black uppercase tracking-tighter" />
             </div>
         </div>
 
-        <div v-if="profile" class="max-w-7xl mx-auto px-6 animate-in fade-in duration-700">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div v-if="profile" class="w-full">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
 
-                <div class="lg:col-span-4 xl:col-span-3">
-                    <div class="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl sticky top-24">
+                <!-- ЛЕВАЯ КОЛОНКА: КАРТОЧКА СОТРУДНИКА -->
+                <div class="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-24">
+                    <div class="bg-slate-900 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl">
                         <div class="flex flex-col items-center">
-                            <div class="relative mb-6 group">
+
+                            <div class="relative mb-4 md:mb-6 group">
                                 <Avatar :label="profile.username[0].toUpperCase()"
-                                    class="!w-32 !h-32 !text-5xl !font-black !rounded-[2rem] shadow-2xl transition-transform group-hover:scale-105"
+                                    class="!w-24 !h-24 md:!w-32 md:!h-32 !text-4xl md:!text-5xl !font-black !rounded-[1.5rem] md:!rounded-[2rem] shadow-2xl transition-transform group-hover:scale-105"
                                     :class="[
                                         profile.role_code === 'admin' ? 'bg-gradient-to-br from-red-500 to-rose-700' :
                                             profile.role_code === 'moderator' ? 'bg-gradient-to-br from-purple-500 to-indigo-700' :
                                                 'bg-gradient-to-br from-blue-500 to-cyan-700'
                                     ]" />
                                 <div
-                                    class="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 border-4 border-slate-900 rounded-2xl flex items-center justify-center">
-                                    <i class="pi pi-check text-[10px] text-white"></i>
+                                    class="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 border-4 border-slate-900 rounded-xl flex items-center justify-center">
+                                    <i class="pi pi-check text-[8px] text-white"></i>
                                 </div>
                             </div>
 
                             <div class="text-center w-full">
-                                <h2 class="text-2xl font-black tracking-tight mb-1">{{ profile.username }}</h2>
-                                <p class="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] italic mb-4">
+                                <h2 class="text-xl md:text-2xl font-black tracking-tight mb-1 truncate">{{
+                                    profile.username }}</h2>
+                                <p
+                                    class="text-blue-400 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] italic mb-4 md:mb-6 truncate">
                                     {{ profile.department || 'Департамент статистики' }}
                                 </p>
 
-                                <div class="bg-white/5 rounded-2xl p-4 mb-6 border border-white/5">
-                                    <p class="text-[10px] text-slate-400 uppercase font-black mb-1">Электронная почта
-                                    </p>
-                                    <p class="text-sm font-medium text-slate-200 truncate">{{ profile.email }}</p>
+                                <div class="bg-white/5 rounded-xl p-3.5 mb-4 border border-white/5 text-left">
+                                    <p class="text-[9px] text-slate-400 uppercase font-black mb-1 tracking-wider">
+                                        Электронная почта</p>
+                                    <p class="text-xs md:text-sm font-medium text-slate-200 truncate">{{ profile.email
+                                        }}</p>
                                 </div>
 
-                                <div class="space-y-3 mb-8">
-                                    <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded-xl">
-                                        <span class="text-[9px] font-black text-slate-500 uppercase">ID</span>
-                                        <span class="text-xs font-mono">#{{ profile.id + 1000 }}</span>
+                                <div class="space-y-2 mb-6 text-left">
+                                    <div class="flex justify-between items-center bg-white/5 px-3.5 py-2 rounded-xl">
+                                        <span class="text-[9px] font-black text-slate-400 uppercase">Табельный ID</span>
+                                        <span class="text-xs font-mono text-slate-200">#{{ profile.id + 1000 }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center bg-white/5 px-4 py-2 rounded-xl">
-                                        <span class="text-[9px] font-black text-slate-500 uppercase">Стаж</span>
-                                        <span class="text-xs font-mono">{{ profile.date_joined }}</span>
+                                    <div class="flex justify-between items-center bg-white/5 px-3.5 py-2 rounded-xl">
+                                        <span class="text-[9px] font-black text-slate-400 uppercase">Регистрация</span>
+                                        <span class="text-xs font-mono text-slate-200">{{ profile.date_joined }}</span>
                                     </div>
                                 </div>
 
                                 <Button @click="handleLogout" icon="pi pi-power-off" label="Завершить сеанс"
-                                    class="!w-full !py-4 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !bg-red-500/10 !text-red-400 !border-red-500/20 hover:!bg-red-500 hover:!text-white transition-all" />
+                                    class="!w-full !py-3.5 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !bg-red-500/10 !text-red-400 !border-red-500/20 hover:!bg-red-500 hover:!text-white transition-all" />
                             </div>
+
                         </div>
                     </div>
                 </div>
 
-                <div class="lg:col-span-8 xl:col-span-9 space-y-8">
+                <!-- ПРАВАЯ КОЛОНКА: РАБОЧИЕ ДАННЫЕ / ТАБЫ -->
+                <div class="lg:col-span-8 xl:col-span-9 space-y-6 md:space-y-8 w-full min-w-0">
 
-                    <div class="flex gap-4">
+                    <!-- Переключатели вкладок (Адаптивные кнопки) -->
+                    <div class="flex flex-row gap-2 bg-slate-200/60 p-1.5 rounded-2xl w-full sm:w-max">
                         <button @click="isSettingsMode = false"
-                            :class="[!isSettingsMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-500']"
-                            class="px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
-                            <i class="pi pi-chart-bar mr-2"></i> Аналитика
+                            :class="[!isSettingsMode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900']"
+                            class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 md:px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+                            <i class="pi pi-chart-bar"></i> <span>Аналитика</span>
                         </button>
                         <button @click="isSettingsMode = true"
-                            :class="[isSettingsMode ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-500']"
-                            class="px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">
-                            <i class="pi pi-shield mr-2"></i> Безопасность
+                            :class="[isSettingsMode ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900']"
+                            class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 md:px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+                            <i class="pi pi-shield"></i> <span>Безопасность</span>
                         </button>
                     </div>
 
-                    <div v-if="!isSettingsMode" class="space-y-8 animate-in slide-in-from-right-4 duration-500">
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <!-- ВКЛАДКА: АНАЛИТИКА -->
+                    <div v-if="!isSettingsMode"
+                        class="space-y-6 md:space-y-8 animate-in slide-in-from-right-4 duration-300">
+
+                        <!-- Микро-карточки метрик -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
                             <div
-                                class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
-                                <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
-                                    <i class="pi pi-heart-fill text-blue-500"></i>
+                                class="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
+                                <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
+                                    <i class="pi pi-heart-fill text-blue-500 text-sm"></i>
                                 </div>
-                                <p class="text-4xl font-black text-slate-800">{{ profile.summary.my_favorites }}</p>
-                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-2">В
+                                <p class="text-3xl md:text-4xl font-black text-slate-800">{{
+                                    profile.summary?.my_favorites || 0 }}</p>
+                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1.5">В
                                     избранном</p>
                             </div>
+
                             <div
-                                class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
-                                <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center mb-4">
-                                    <i class="pi pi-cloud-upload text-indigo-500"></i>
+                                class="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col items-center text-center">
+                                <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-3">
+                                    <i class="pi pi-cloud-upload text-indigo-500 text-sm"></i>
                                 </div>
-                                <p class="text-4xl font-black text-slate-800">{{ profile.summary.my_records }}</p>
-                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-2">Мои
+                                <p class="text-3xl md:text-4xl font-black text-slate-800">{{ profile.summary?.my_records
+                                    || 0 }}</p>
+                                <p class="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-1.5">Мои
                                     загрузки</p>
                             </div>
+
                             <div
-                                class="bg-slate-900 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
+                                class="bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2rem] shadow-xl flex flex-col items-center text-center">
                                 <div
-                                    class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mb-4 text-white">
-                                    <i class="pi pi-server"></i>
+                                    class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3 text-white">
+                                    <i class="pi pi-server text-sm"></i>
                                 </div>
-                                <p class="text-4xl font-black text-white">{{ profile.summary.total_system_files }}</p>
-                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-2">База
+                                <p class="text-3xl md:text-4xl font-black text-white">{{
+                                    profile.summary?.total_system_files || 0 }}</p>
+                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1.5">База
                                     системы</p>
                             </div>
                         </div>
 
-                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200/60 shadow-sm">
-                            <div class="flex items-center justify-between mb-8">
-                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest italic">
-                                    Визуализация активности данных
-                                </h4>
-                            </div>
+                        <!-- Модуль Графиков -->
+                        <div
+                            class="bg-white p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/60 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-800 uppercase tracking-widest italic mb-6">
+                                Визуализация активности данных
+                            </h4>
                             <AnalyticsCharts :records="allTracks" />
                         </div>
 
-                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200/60 shadow-sm">
-                            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-8">События учетной
-                                записи</h4>
-                            <ScrollPanel style="width: 100%; height: 300px" class="custom-scroll">
-                                <div class="space-y-4 pr-6">
-                                    <div v-for="item in profile.stats.recent_activity" :key="item.id"
-                                        class="group flex items-center justify-between p-5 bg-slate-50/50 rounded-3xl border border-transparent hover:border-blue-200 hover:bg-white transition-all duration-300">
-                                        <div class="flex items-center space-x-5">
+                        <!-- Логи Системных Событий -->
+                        <div
+                            class="bg-white p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/60 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-800 uppercase tracking-widest mb-6">События
+                                учетной записи</h4>
+                            <ScrollPanel style="width: 100%; height: 320px" class="custom-scroll">
+                                <div class="space-y-3 pr-2 md:pr-4">
+                                    <div v-for="item in profile.stats?.recent_activity" :key="item.id"
+                                        class="group flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 rounded-xl md:rounded-2xl border border-transparent hover:border-blue-200 hover:bg-white transition-all duration-300 gap-3">
+                                        <div class="flex items-center space-x-4">
                                             <div
-                                                class="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-blue-600 transition-colors">
-                                                <i class="pi pi-history text-slate-400 group-hover:text-white"></i>
+                                                class="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:bg-blue-600 transition-colors shrink-0">
+                                                <i
+                                                    class="pi pi-history text-slate-400 group-hover:text-white text-xs"></i>
                                             </div>
-                                            <div>
-                                                <p class="text-sm font-black text-slate-700">{{ item.title }}</p>
+                                            <div class="min-w-0">
+                                                <p class="text-xs md:text-sm font-black text-slate-700 truncate">{{
+                                                    item.title }}</p>
                                                 <p
-                                                    class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">
+                                                    class="text-[9px] text-slate-400 uppercase font-bold tracking-tight mt-0.5">
                                                     Запись успешно верифицирована</p>
                                             </div>
                                         </div>
-                                        <div class="text-right">
+                                        <div class="text-left sm:text-right shrink-0">
                                             <Tag :value="item.date" severity="secondary"
                                                 class="!text-[9px] !bg-slate-200/50 !text-slate-600" />
                                         </div>
@@ -218,12 +241,15 @@ const getRoleSeverity = (role) => {
                         </div>
                     </div>
 
-                    <div v-else class="max-w-xl animate-in slide-in-from-right-4 duration-500">
-                        <div class="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm">
-                            <div class="mb-8">
-                                <h3 class="text-xl font-black text-slate-800 mb-2">Настройки безопасности</h3>
-                                <p class="text-sm text-slate-400 font-medium">Регулярная смена пароля помогает защитить
-                                    ваш рабочий аккаунт в РостовСтат.</p>
+                    <!-- ВКЛАДКА: БЕЗОПАСНОСТЬ -->
+                    <div v-else class="max-w-2xl w-full animate-in slide-in-from-right-4 duration-300">
+                        <div
+                            class="bg-white p-5 sm:p-6 md:p-10 rounded-2xl md:rounded-[2rem] border border-slate-200 shadow-sm">
+                            <div class="mb-6 md:mb-8">
+                                <h3 class="text-lg md:text-xl font-black text-slate-800 mb-2">Настройки безопасности
+                                </h3>
+                                <p class="text-xs md:text-sm text-slate-400 font-medium">Регулярная смена пароля
+                                    помогает защитить ваш рабочий аккаунт в закрытой системе РостовСтат.</p>
                             </div>
 
                             <div class="space-y-4">
@@ -231,7 +257,7 @@ const getRoleSeverity = (role) => {
                                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Новый
                                         пароль</label>
                                     <InputText v-model="newPassword" type="password"
-                                        class="!w-full !rounded-2xl !p-5 !bg-slate-50 !border-slate-100 focus:!bg-white"
+                                        class="!w-full !rounded-xl !p-4 !bg-slate-50 !border-slate-200/70 focus:!bg-white"
                                         placeholder="Минимум 6 символов" />
                                 </div>
 
@@ -239,11 +265,11 @@ const getRoleSeverity = (role) => {
                                     {{ message }}
                                 </Message>
 
-                                <div class="flex gap-4 pt-4">
+                                <div class="flex flex-col sm:flex-row gap-3 pt-4">
                                     <Button @click="saveSettings" label="Сохранить изменения"
-                                        class="flex-[2] !rounded-2xl !py-4 !font-black !uppercase !text-[10px] !tracking-widest" />
+                                        class="sm:flex-[2] !rounded-xl !py-3.5 !font-black !uppercase !text-[10px] !tracking-widest" />
                                     <Button @click="isSettingsMode = false" label="Отмена" severity="secondary" text
-                                        class="flex-1 !rounded-2xl !font-black !uppercase !text-[10px] !tracking-widest" />
+                                        class="sm:flex-1 !rounded-xl !py-3.5 !font-black !uppercase !text-[10px] !tracking-widest" />
                                 </div>
                             </div>
                         </div>
@@ -256,7 +282,6 @@ const getRoleSeverity = (role) => {
 </template>
 
 <style scoped>
-/* Кастомный скролл для PrimeVue */
 :deep(.custom-scroll .p-scrollpanel-bar) {
     background-color: #cbd5e1 !important;
     opacity: 0.5 !important;
@@ -264,10 +289,5 @@ const getRoleSeverity = (role) => {
 
 :deep(.p-tag) {
     border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* Улучшение читаемости на больших экранах */
-.max-w-7xl {
-    max-width: 1400px;
 }
 </style>

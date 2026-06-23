@@ -13,6 +13,14 @@ class IsModeratorOrAdmin(permissions.BasePermission):
             has_role = request.user.profile.role in ['moderator', 'admin']
             
         return is_staff or has_role
+    
+class IsAuthorOrReadOnly(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Разрешено смотреть всем (GET, HEAD, OPTIONS)
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Редактировать или удалять — только автору
+        return obj.author == request.user
 
 class IsSystemAdmin(permissions.BasePermission):
     """Разрешает доступ ТОЛЬКО системным администраторам (is_superuser)"""

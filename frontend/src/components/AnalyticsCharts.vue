@@ -12,24 +12,21 @@ import {
 } from 'chart.js'
 import { Bar, Pie } from 'vue-chartjs'
 
-// Регистрируем модули Chart.js
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
 const props = defineProps({
     stats: Object,
     records: Array
 })
-const someData = (props.records?.filter(r => r.status === 'ok')) || []
 
-// 1. Логика для круговой диаграммы (Распределение по категориям)
+// Логика распределения по категориям
 const categoryData = computed(() => {
-    const list = props.records || [] // Защита
+    const list = props.records || []
     const counts = {}
     list.forEach(r => {
         counts[r.category] = (counts[r.category] || 0) + 1
     })
 
-    // Красивые названия категорий для легенды
     const labelsMap = {
         'concentration': 'Концентрация',
         'pro': 'Проф. контент',
@@ -46,9 +43,9 @@ const categoryData = computed(() => {
     }
 })
 
-// 2. Логика для столбчатой диаграммы (Активность по дням)
+// Столбчатая диаграмма активности по дням
 const activityData = computed(() => {
-    const list = props.records || [] // Защита
+    const list = props.records || []
     const last7Days = [...Array(7)].map((_, i) => {
         const d = new Date()
         d.setDate(d.getDate() - i)
@@ -56,7 +53,6 @@ const activityData = computed(() => {
     }).reverse()
 
     const counts = last7Days.map(date => {
-        // Добавлен опциональный поиск
         return list.filter(r => r.created_at?.startsWith(date)).length
     })
 
@@ -65,7 +61,7 @@ const activityData = computed(() => {
         datasets: [{
             label: 'Загружено файлов',
             backgroundColor: '#3b82f6',
-            borderRadius: 8,
+            borderRadius: 6,
             data: counts
         }]
     }
@@ -73,56 +69,49 @@ const activityData = computed(() => {
 
 const chartOptions = {
     responsive: true,
-    maintainAspectRatio: false, // Позволяет графику подстраиваться под размер контейнера
+    maintainAspectRatio: false, // Разрешаем кастомизацию контейнером
     plugins: {
         legend: {
             position: 'bottom',
             labels: {
-                boxWidth: 10,
+                boxWidth: 8,
                 usePointStyle: true,
-                padding: 15, // Отступ между легендой и графиком
+                padding: 12,
                 font: { weight: 'bold', size: 10 }
             }
         },
         tooltip: {
             backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            padding: 12,
-            borderRadius: 10
+            padding: 10,
+            borderRadius: 8
         }
     },
-    // Важно для Pie: отступы внутри самого холста
     layout: {
-        padding: {
-            top: 10,
-            bottom: 10
-        }
+        padding: { top: 5, bottom: 5 }
     }
 }
 </script>
 
 <template>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-64 flex flex-col">
-            <h5 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Активность (7 дней)</h5>
-            <div class="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 h-[280px] overflow-hidden">
+    <!-- Изменили на grid-cols-1 lg:grid-cols-2 для лучшего распределения пространства -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+
+        <!-- График 1: Активность -->
+        <div class="bg-slate-50/60 p-4 rounded-2xl border border-slate-100 flex flex-col w-full">
+            <h5 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Активность (7 дней)</h5>
+            <!-- Контейнер с явной высотой для корректного рендеринга ChartJS -->
+            <div class="h-[240px] md:h-[280px] w-full relative">
                 <Bar :data="activityData" :options="chartOptions" />
             </div>
         </div>
-        <div class="flex flex-col">
-            <h5 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4 italic ml-2">
-                Типы контента
-            </h5>
-            <div
-                class="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 h-[280px] relative overflow-hidden flex justify-center">
+
+        <!-- График 2: Типы контента -->
+        <div class="bg-slate-50/60 p-4 rounded-2xl border border-slate-100 flex flex-col w-full">
+            <h5 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 italic">Типы контента</h5>
+            <div class="h-[240px] md:h-[280px] w-full relative flex justify-center">
                 <Pie :data="categoryData" :options="chartOptions" />
             </div>
         </div>
 
-        <!-- <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm h-64 flex flex-col">
-            <h5 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">По категориям</h5>
-            <div class="flex-1 flex justify-center">
-                <Pie :data="categoryData" :options="chartOptions" />
-            </div>
-        </div> -->
     </div>
 </template>

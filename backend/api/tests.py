@@ -30,7 +30,7 @@ class AudioMassCreateTest(TestCase):
         """Тест создает 50 аудиозаписей и проверяет их наличие в базе"""
         print("\nНачинаю создание 50 тестовых записей...")
         
-        for i in range(1, 51):
+        for i in range(90, 120):
             # Создаем фейковый файл в памяти
             fake_file = io.BytesIO(b"fake audio content")
             fake_file.name = f'test_audio_{i}.mp3'

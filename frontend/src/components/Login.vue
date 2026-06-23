@@ -26,6 +26,7 @@ const login = async () => {
         const token = response.data.token
         localStorage.setItem('user-token', token)
         axios.defaults.headers.common['Authorization'] = `Token ${token}`
+        
         emit('login-success')
     } catch (err) {
         error.value = "Неверный логин или пароль"

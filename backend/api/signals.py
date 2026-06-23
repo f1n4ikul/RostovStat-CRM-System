@@ -6,10 +6,11 @@ from .models import UserProfile
 @receiver(post_save, sender=User)
 def manage_user_profile(sender, instance, created, **kwargs):
     if created:
-        # Используем get_or_create вместо простого create
-        UserProfile.objects.get_or_create(user=instance)
-    else:
-        # Для существующих пользователей проверяем наличие профиля
-        profile, created_now = UserProfile.objects.get_or_create(user=instance)
-        if not created_now:
-            profile.save()
+        UserProfile.objects.get_or_create(
+            user=instance,
+            defaults={
+                'department': instance.first_name or 'Общий отдел',
+                'role': 'employee',
+                
+            }
+        )
